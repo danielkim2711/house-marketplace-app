@@ -1,10 +1,18 @@
 import { useState, useEffect, useRef } from 'react';
 import { getAuth, onAuthStateChanged } from 'firebase/auth';
+import {
+  getStorage,
+  ref,
+  uploadBytesResumable,
+  getDownloadURL,
+} from 'firebase/storage';
+import { db } from '../firebase.config';
 import { useNavigate } from 'react-router-dom';
+import { toast } from 'react-toastify';
+import { v4 as uuidv4 } from 'uuid';
 import Spinner from '../components/Spinner';
 
 function CreateListing() {
-  const [geolocationEnabled, setGeolocationEnabled] = useState(false);
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
     type: 'rent',
@@ -17,7 +25,7 @@ function CreateListing() {
     offer: false,
     regularPrice: 0,
     discountedPrice: 0,
-    imageUrls: {},
+    images: {},
     latitude: 0,
     longitude: 0,
   });
@@ -33,7 +41,7 @@ function CreateListing() {
     offer,
     regularPrice,
     discountedPrice,
-    imageUrls,
+    images,
     latitude,
     longitude,
   } = formData;
@@ -58,9 +66,75 @@ function CreateListing() {
     };
   }, [isMounted]);
 
-  const onSubmit = (e) => {
+  const onSubmit = async (e) => {
     e.preventDefault();
-    console.log(formData);
+
+    setLoading(true);
+
+    if (discountedPrice >= regularPrice) {
+      setLoading(false);
+      toast.error('Discounted price must be less than regular price');
+      return;
+    }
+
+    if (images.length > 6) {
+      setLoading(false);
+      toast.error('Max 6 images');
+      return;
+    }
+
+    // Store image in firebase
+    const storeImage = async (image) => {
+      return new Promise((resolve, reject) => {
+        const storage = getStorage();
+        const fileName = `${auth.currentUser.uid}-${image.name}-${uuidv4()}`;
+
+        const storageRef = ref(storage, 'images/' + fileName);
+
+        const uploadTask = uploadBytesResumable(storageRef, image);
+
+        uploadTask.on(
+          'state_changed',
+          (snapshot) => {
+            const progress =
+              (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+            console.log('Upload is ' + progress + '% done');
+            switch (snapshot.state) {
+              case 'paused':
+                console.log('Upload is paused');
+                break;
+              case 'running':
+                console.log('Upload is running');
+                break;
+              default:
+                break;
+            }
+          },
+          (error) => {
+            reject(error);
+          },
+          () => {
+            // Handle successful uploads on complete
+            // For instance, get the download URL: https://firebasestorage.googleapis.com/...
+            getDownloadURL(uploadTask.snapshot.ref).then((downloadURL) => {
+              resolve(downloadURL);
+            });
+          }
+        );
+      });
+    };
+
+    const imageUrls = await Promise.all(
+      [...images].map((image) => storeImage(image))
+    ).catch(() => {
+      setLoading(false);
+      toast.error('Images not uploaded');
+      return;
+    });
+
+    console.log(imageUrls);
+
+    setLoading(false);
   };
 
   const onMutate = (e) => {
@@ -78,7 +152,7 @@ function CreateListing() {
     if (e.target.files) {
       setFormData((prevState) => ({
         ...prevState,
-        imageUrls: e.target.files,
+        images: e.target.files,
       }));
     }
 
@@ -228,32 +302,30 @@ function CreateListing() {
             required
           />
 
-          {!geolocationEnabled && (
-            <div className='formLatLng flex'>
-              <div>
-                <label className='formLabel'>Latitude</label>
-                <input
-                  className='formInputSmall'
-                  type='number'
-                  id='latitude'
-                  value={latitude}
-                  onChange={onMutate}
-                  required
-                />
-              </div>
-              <div>
-                <label className='formLabel'>Longitude</label>
-                <input
-                  className='formInputSmall'
-                  type='number'
-                  id='longitude'
-                  value={longitude}
-                  onChange={onMutate}
-                  required
-                />
-              </div>
+          <div className='formLatLng flex'>
+            <div>
+              <label className='formLabel'>Latitude</label>
+              <input
+                className='formInputSmall'
+                type='number'
+                id='latitude'
+                value={latitude}
+                onChange={onMutate}
+                required
+              />
             </div>
-          )}
+            <div>
+              <label className='formLabel'>Longitude</label>
+              <input
+                className='formInputSmall'
+                type='number'
+                id='longitude'
+                value={longitude}
+                onChange={onMutate}
+                required
+              />
+            </div>
+          </div>
 
           <label className='formLabel'>Offer</label>
           <div className='formButtons'>
@@ -317,7 +389,7 @@ function CreateListing() {
           <input
             className='formInputFile'
             type='file'
-            id='imageUrls'
+            id='images'
             onChange={onMutate}
             max='6'
             accept='.jpg,.png,.jpeg'
