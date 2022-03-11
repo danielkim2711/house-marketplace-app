@@ -6,6 +6,7 @@ import {
   uploadBytesResumable,
   getDownloadURL,
 } from 'firebase/storage';
+import { addDoc, collection, serverTimestamp } from 'firebase/firestore';
 import { db } from '../firebase.config';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
@@ -83,6 +84,10 @@ function CreateListing() {
       return;
     }
 
+    let geolocation = {};
+    geolocation.lat = latitude;
+    geolocation.lng = longitude;
+
     // Store image in firebase
     const storeImage = async (image) => {
       return new Promise((resolve, reject) => {
@@ -132,9 +137,25 @@ function CreateListing() {
       return;
     });
 
-    console.log(imageUrls);
+    const formDataCopy = {
+      ...formData,
+      imageUrls,
+      geolocation,
+      timestamp: serverTimestamp(),
+    };
+
+    formDataCopy.location = address;
+    delete formDataCopy.images;
+    delete formDataCopy.latitude;
+    delete formDataCopy.longitude;
+    delete formDataCopy.address;
+    !formDataCopy.offer && delete formDataCopy.discountedPrice;
+
+    const docRef = await addDoc(collection(db, 'listings'), formDataCopy);
 
     setLoading(false);
+    toast.success('Listing saved successfully');
+    navigate(`/category/${formDataCopy.type}/${docRef.id}`);
   };
 
   const onMutate = (e) => {
@@ -385,6 +406,10 @@ function CreateListing() {
           <label className='formLabel'>Images</label>
           <p className='imagesInfo'>
             The first image will be the cover (max 6).
+          </p>
+          <p className='imagesInfo'>
+            Images must be Less than{' '}
+            <span style={{ fontWeight: 'bold' }}>2MB</span>
           </p>
           <input
             className='formInputFile'
