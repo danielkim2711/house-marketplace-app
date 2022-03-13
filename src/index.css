@@ -66,7 +66,7 @@ button {
   font-weight: 600;
   font-size: 1.25rem;
   width: 80%;
-  margin: 0 auto;
+  margin: 0 auto 8rem;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -293,7 +293,7 @@ button {
   color: #00cc66;
   font-weight: 600;
   text-align: center;
-  margin-bottom: 3rem;
+  margin-bottom: 10rem;
 }
 
 @media (min-width: 1217px) {
@@ -373,6 +373,7 @@ button {
 .exploreCategories {
   display: flex;
   justify-content: space-between;
+  margin-bottom: 7rem;
 }
 .exploreCategories a {
   width: 48%;
